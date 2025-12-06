@@ -8,10 +8,8 @@ app.use(express.json())
 app.use(express.urlencoded({extended:true}))
 app.use(cookieParser())
 const connect = require('./db/db')
-
-connect();
-app.use('/', (req,res) => {
-
-})
-
+connect()
+app.use('/',userRoutes)
+const rabbitMq = require('./service/rabbit')
+rabbitMq.connect()
 module.exports = app;

@@ -10,4 +10,6 @@ app.use(cookieParser())
 const connect = require('./db/db')
 connect()
 app.use('/',captainRoutes)
+const rabbitMq = require('./service/rabbit')
+rabbitMq.connect()
 module.exports = app;

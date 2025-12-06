@@ -2,11 +2,14 @@ const captainModel = require('../models/captain.model')
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
 const blacklisttokenModel =  require('../models/blacklisttoken.model')
+const { subscribeToQueue } = require('../service/rabbit')
 const removePassword = (doc) => {
     const obj = doc.toObject();
     delete obj.password;
     return obj;
 };
+
+const pendingRequest = []
 
 module.exports.register = async (req , res) => {
     try{
@@ -97,3 +100,20 @@ module.exports.toggleAvailability = async (req , res) => {
     }
 }
 
+module.exports.waitForNewRide = async (req, res) => {
+    req.setTimeout(30000,() => {
+        res.status(204).end()
+    });
+    pendingRequest.push(res)
+}
+
+subscribeToQueue("new-ride",(data) => {
+
+    const rideData = JSON.parse(data)
+
+    pendingRequest.forEach(res => {
+        res.json(rideData)
+    })
+    pendingRequest.length = 0;
+    // console.log(JSON.parse(data))
+})

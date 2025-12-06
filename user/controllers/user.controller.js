@@ -1,7 +1,10 @@
 const userModel = require('../models/user.model')
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
-
+const blacklisttokenModel =  require('../models/blacklisttoken.model')
+const { subscribeToQueue } = require('../service/rabbit')
+const EventEmitter = require('events')
+const rideEventEmitter = new EventEmitter()
 module.exports.register = async (req , res) => {
     try{
         const {name , email , password} = req.body
@@ -18,11 +21,11 @@ module.exports.register = async (req , res) => {
 
         await newUser.save()
 
-        const token = jwt.sign({id:newUser_id}, process.env.JWT_SECRET,{expiresIn:'1h'})
+        const token = jwt.sign({id:newUser._id}, process.env.JWT_SECRET,{expiresIn:'1h'})
         res.cookie('token',token)
         delete newUser._password
 
-        res.send({message:"User registered successfully"})
+        res.send({token , newUser})
 
     }catch(error){
         res.status(500).json({message: error.message})
@@ -58,20 +61,37 @@ module.exports.login = async (req, res) => {
 
 module.exports.logout = async (req, res) => {
     try{
-        const token = req.cookie.token;
+        const token = req.cookies.token;
         await blacklisttokenModel.create({token})
         res.clearCookie('token');
         res.send({message:"User logged out successfully"})
     }catch(error){
-        res.status(500).json({message:error.message})
+        res.status(500).json({message:error.message,})
     }
 }
 
 module.exports.profile = async (req , res) => {
     try{
+        
         res.send(req.user)
     }catch(error){
         res.status(500).json({message:error.message})
     }
 }
 
+module.exports.acceptedRide = async (req, res) => {
+    // long pooling : wait for ride accepted
+    rideEventEmitter.once('ride-accepted', (data) => {
+        res.send(data);
+    })
+
+    // sttime out for long polling
+    setTimeout( () => {
+        res.status(204).send()
+    },30000)
+}
+
+subscribeToQueue('ride-accepted', async(msg) => {
+    const data = JSON.parse(msg)
+    rideEventEmitter.emit('ride-accepted',data)
+})
